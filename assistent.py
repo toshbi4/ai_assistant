@@ -1,0 +1,60 @@
+import sounddevice as sd
+import scipy.io.wavfile as wav
+import subprocess
+import requests
+import tempfile
+import os
+import json
+
+OLLAMA_MODEL = "llama2"  # Or mistral, etc.
+WHISPER_MODEL_PATH = "/home/anton/ML/whisper.cpp/models/ggml-base.en.bin"  # Adjust to your whisper.cpp model
+
+def record_audio(filename, duration=5, samplerate=16000):
+    print(f"🎤 Recording for {duration} seconds...")
+    recording = sd.rec(int(samplerate * duration), samplerate=samplerate, channels=1, dtype='int16')
+    sd.wait()
+    wav.write(filename, samplerate, recording)
+    print("✅ Recording complete.")
+
+def transcribe_with_whisper_cpp(audio_path):
+    print("🧠 Transcribing with whisper.cpp...")
+    cmd = [
+        "/home/anton/ML/whisper.cpp/build/bin/whisper-cli",  # Path to compiled whisper.cpp binary
+        "-m", WHISPER_MODEL_PATH,
+        "-f", audio_path,
+        "-nt",  # no timestamps
+        "-otxt",
+        "-of", "audio2txt"
+    ]
+    subprocess.run(cmd, cwd="/home/anton/ML/whisper.cpp/", check=True)
+    with open("/home/anton/ML/whisper.cpp/audio2txt.txt", "r", encoding="utf-8") as f:
+        return f.read().strip()
+
+def send_to_ollama(prompt):
+    print("📡 Sending to Ollama...")
+    response = requests.post("http://localhost:11434/api/generate", json={
+        "model": OLLAMA_MODEL,
+        "prompt": prompt
+    }, stream=True)
+
+    result = ""
+    for chunk in response.iter_lines():
+        if chunk:
+            try:
+                data = json.loads(chunk.decode().lstrip("data: "))
+                result += data.get("response", "")
+            except json.JSONDecodeError:
+                continue
+    return result
+
+def main():
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+        record_audio(tmp.name)
+        transcription = transcribe_with_whisper_cpp(tmp.name)
+        print(f"📝 You said: {transcription}")
+        response = send_to_ollama(transcription)
+        print(f"🤖 Ollama says:\n{response}")
+        os.unlink(tmp.name)
+
+if __name__ == "__main__":
+    main()
