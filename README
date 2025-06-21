@@ -1,6 +1,9 @@
+Prepare libs and download AI models:
 1. https://ollama.com/download
-2. python3 assistent.py
-3. cd whisper.cpp
-4. cmake -B build
-5. cmake --build build --config Release
-6. sh ./models/download-ggml-model.sh base.en
+2. cd whisper.cpp
+3. cmake -B build
+4. cmake --build build --config Release
+5. sh ./models/download-ggml-model.sh base.en
+
+Run assistant:
+python3 assistant.py
